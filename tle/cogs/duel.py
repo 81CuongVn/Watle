@@ -98,7 +98,7 @@ class Dueling(commands.Cog):
 
     @duel.command(brief='Challenge to a duel')
     async def challenge(self, ctx, opponent: discord.Member, rating:int=None):
-        """Challenge another server member to a duel. Problem difficulty will be the lesser of duelist ratings minus 400. You can alternatively specify a lower rating. The challenge expires if ignored for 5 minutes."""
+        """Challenge another server member to a duel. Problem difficulty will be the lesser of duelist ratings minus 400. You can alternatively specify a different rating. The duel will be unrated if specified rating is above the default value. The challenge expires if ignored for 5 minutes."""
         challenger_id = ctx.author.id
         challengee_id = opponent.id
 
@@ -153,7 +153,7 @@ class Dueling(commands.Cog):
         ostr = 'an **unofficial**' if unofficial else 'a'
         await ctx.send(f'{ctx.author.mention} is challenging {opponent.mention} to {ostr} {rstr}duel!')
         await asyncio.sleep(_DUEL_EXPIRY_TIME)
-        if cf_common.user_db.cancel_duel(duelid, Duel.EXPIRED, dtype):
+        if cf_common.user_db.cancel_duel(duelid, Duel.EXPIRED):
             await ctx.send(f'{ctx.author.mention}, your request to duel {opponent.display_name} has expired!')
 
     @duel.command(brief='Decline a duel')
@@ -532,7 +532,7 @@ class Dueling(commands.Cog):
                 rating_data[-1][1]))
             for duelist, rating_data in plot_data.items()
         ]
-        plt.legend(labels, loc='upper left')
+        plt.legend(labels, loc='upper left', prop=gc.fontprop)
 
         discord_file = gc.get_current_figure_as_file()
         embed = discord_common.cf_color_embed(title='Duel rating graph')

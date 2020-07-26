@@ -2,9 +2,15 @@ import os
 import io
 import discord
 import time
+import matplotlib.font_manager
+import matplotlib
+matplotlib.use('agg') # Explicitly set the backend to avoid issues
 
 from tle import constants
 from matplotlib import pyplot as plt
+from matplotlib import rcParams
+
+fontprop = matplotlib.font_manager.FontProperties(fname=constants.NOTO_SANS_CJK_REGULAR_FONT_PATH)
 
 
 # String wrapper to avoid the underscore behavior in legends

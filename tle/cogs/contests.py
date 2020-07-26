@@ -104,6 +104,7 @@ class Contests(commands.Cog):
         self.logger = logging.getLogger(self.__class__.__name__)
 
     @commands.Cog.listener()
+    @discord_common.once
     async def on_ready(self):
         self._update_task.start()
 
@@ -443,6 +444,11 @@ class Contests(commands.Cog):
                 standing = ranklist.get_standing_row(handle)
             except rl.HandleNotPresentError:
                 continue
+
+            # Database has correct handle ignoring case, update to it
+            # TODO: It will throw an exception if this row corresponds to a team. At present ranklist doesnt show teams.
+            # It should be fixed in https://github.com/cheran-senthil/TLE/issues/72
+            handle=standing.party.members[0].handle
             handle_standings.append((handle, standing))
 
         if not handle_standings:

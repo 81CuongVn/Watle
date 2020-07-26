@@ -104,36 +104,30 @@ class Codeforces(commands.Cog):
             await ctx.send(embed=embed)
 
     @commands.command(brief='Recommend a problem',
-                      usage='[tags...] [lower] [upper]')
+                      usage='[tags...] [rating]')
     @cf_common.user_guard(group='gitgud')
     async def gimme(self, ctx, *args):
+        handle, = await cf_common.resolve_handles(ctx, self.converter, ('!' + str(ctx.author),))
+        rating = round(cf_common.user_db.fetch_cf_user(handle).effective_rating, -2)
         tags = []
-        bounds = []
         for arg in args:
             if arg.isdigit():
-                bounds.append(int(arg))
+                rating = int(arg)
             else:
                 tags.append(arg)
 
-        handle, = await cf_common.resolve_handles(ctx, self.converter, ('!' + str(ctx.author),))
         submissions = await cf.user.status(handle=handle)
         solved = {sub.problem.name for sub in submissions if sub.verdict == 'OK'}
 
-        lower = bounds[0] if len(bounds) > 0 else None
-        if lower is None:
-            user = cf_common.user_db.fetch_cf_user(handle)
-            lower = round(user.effective_rating, -2)
-        upper = bounds[1] if len(bounds) > 1 else lower + 200
         problems = [prob for prob in cf_common.cache2.problem_cache.problems
-                    if lower <= prob.rating and prob.name not in solved]
-        problems = [prob for prob in problems if not cf_common.is_contest_writer(prob.contestId, handle)]
+                    if prob.rating == rating and prob.name not in solved and
+                    not cf_common.is_contest_writer(prob.contestId, handle)]
         if tags:
             problems = [prob for prob in problems if prob.tag_matches(tags)]
+
         if not problems:
-            await ctx.send('Problems not found within the search parameters')
-            return
-        upper = max(upper, min([prob.rating for prob in problems]))
-        problems = [prob for prob in problems if prob.rating <= upper]
+            raise CodeforcesCogError('Problems not found within the search parameters')
+
         problems.sort(key=lambda problem: cf_common.cache2.contest_cache.get_contest(
             problem.contestId).startTimeSeconds)
 
@@ -162,7 +156,7 @@ class Codeforces(commands.Cog):
         handles = await cf_common.resolve_handles(ctx, self.converter, handles)
         submissions = [await cf.user.status(handle=handle) for handle in handles]
         submissions = [sub for subs in submissions for sub in subs]
-        submissions = filt.filter(submissions)
+        submissions = filt.filter_subs(submissions)
 
         if not submissions:
             raise CodeforcesCogError('Submissions not found within the search parameters')
@@ -455,14 +449,10 @@ class Codeforces(commands.Cog):
             r = (left + right) / 2.0
 
             rWinsProbability = 1.0
-            for rating in ratings:
-                rWinsProbability *= Codeforces.getEloWinProbability(r, rating)
+            for rating, count in ratings:
+                rWinsProbability *= Codeforces.getEloWinProbability(r, rating)**count
 
-            if rWinsProbability==0:
-                left = r
-                continue
-            rating = math.log10(1 / (rWinsProbability) - 1) * 400 + r
-            if rating > r:
+            if rWinsProbability < 0.5:
                 left = r
             else:
                 right = r
@@ -495,8 +485,7 @@ class Codeforces(commands.Cog):
                 else:
                     handle_counts[parse_str[0]] = 1
                 parsed_handles.append(parse_str[0])
-            if sum(handle_counts.values()) > 100000:
-                raise CodeforcesCogError('Too large of a team!')
+
             cf_handles = await cf_common.resolve_handles(ctx, self.converter, parsed_handles, mincnt=1, maxcnt=1000)
             cf_handles = normalize(cf_handles)
             cf_to_original = {a: b for a, b in zip(cf_handles, parsed_handles)}
@@ -508,11 +497,11 @@ class Codeforces(commands.Cog):
                     user_strs.append(f'{original_to_cf[a]}*{b}')
                 elif b == 1:
                     user_strs.append(original_to_cf[a])
-                elif b < 0:
-                    raise CodeforcesCogError('How can you have negative members in team?')
+                elif b <= 0:
+                    raise CodeforcesCogError('How can you have nonpositive members in team?')
 
             user_str = ', '.join(user_strs)
-            ratings = [user.rating for user in users if user.rating for _ in range(handle_counts[cf_to_original[user.handle.lower()]])]
+            ratings = [(user.rating, handle_counts[cf_to_original[user.handle.lower()]]) for user in users if user.rating]
 
         if len(ratings) == 0:
             raise CodeforcesCogError("No CF usernames with ratings passed in.")
